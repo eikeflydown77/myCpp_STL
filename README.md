@@ -1,2 +1,2 @@
 # mySTL
-It's a toy Cpp's STL
+It's a toy Cpp STL.
