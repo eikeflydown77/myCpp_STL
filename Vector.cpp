@@ -1,5 +1,6 @@
 typedef int Rank; //秩
 #define DEFAULT_CAPACITY 3  //默认初始容量（实际应用中可以设置更大）
+#include "Fib.cpp"
 
 template<typename T> class Vector { //向量模版类
 protected:
@@ -9,7 +10,7 @@ protected:
     void copyFrom(T const *A, Rank lo, Rank hi); //复制
     void expand(); //空间不足时扩容
     void shrink(); //装填因子过小时缩容
-    void bubble(Rank lo, Rank hi);  //扫描交换
+    Rank bubble(Rank lo, Rank hi);  //扫描交换
     void bubbleSort();  //起泡排序算法
     Rank max(Rank lo, Rankhi);  //选取最大元素
     void selectionSort(Rank lo, Rank hi);   //选择排序
@@ -40,10 +41,7 @@ public:
     Rank find(T const &e, Rank lo, Rank hi) const;  //无序向量区间查找
     Rank search(T const &e) const {return search(e, 0, _size);}   //有序向量整体查找
     Rank search(T const &e, Rank lo, Rank hi) const;    //有序向量区间查找
-    void visit(T const &e) const    //为了遍历而写了个visit
-    {
-        std::cout << e << std::endl;
-    }
+    int disordered() const;
 
     //可写访问接口
     T & operator[](Rank r);  //重载下标操作符
@@ -160,6 +158,126 @@ template<typename VST>
 void Vector<T>::traverse(VST &visit) {
     for (int i = 0; i < _size; i++) visit(_elem[i]);
 }
+
+template<typename T>
+int Vector<T>::disordered() const { //统计向量中的逆序相邻元素对
+    int n = 0;  //计数器
+    for (int i = 0; i < _size; i++) {   //逐一检查各个相邻对
+        n += (_elem[i - 1] > _elem[i]); //若逆序则计数器自增
+    }
+    return n;
+}
+
+//template<typename T>
+//int Vector<T>::uniquify() { //低效版本
+//    int oldSize = _size;
+//    int i = 1;
+//    while(i < _size) {  //从前向后，逐一比对各对相邻元素
+//        _elem[i - 1] == _elem[i] ? remove(i) : i++; //如果相同则remove(),否则i自增前进
+//    }
+//    return oldSize - _size; //这里的_size的变化由remove()隐式地完成
+//}
+
+template<typename T>
+int Vector<T>::uniquify() {
+    Rank i = 0, j = 0;
+    while(++ j < _size) {   //逐一扫描直到末元素
+        //i取到相同元素的第一个元素，使j自增，当找到第一个非相同元素时，将该元素移至i后
+        if(_elem[i] != _elem[j]) _elem[++i] = _elem[j];
+    }
+    _size = ++i;
+    shrink();
+    return j - i; //此时j = oldSize, i = _size
+}
+
+template<typename T>
+void Vector<T>::shrink() {
+    if(_capacity < DEFAULT_CAPACITY << 1) return;   //防止收缩了比初始容量小
+    if(_capacity < size << 2) return;   //如果装载因子大于0.25则不收缩
+    T *oldElem = _elem;
+    _elem = new T[_capacity >> 1];  //容量减半
+    for (int i = 0; i < ; i++) _elem[i] = oldElem[i];   //一一赋值
+    delete[] oldElem;   //释放原空间
+}
+
+template<typename T>
+Rank Vector<T>::search(const T &e, Rank lo, Rank hi) const {
+    return (rand()%2) ? binSearch(_elem, e, lo, hi) : fibSearch(_elem, e, lo, hi);  //随机使用两种查找算法
+}
+
+template<typename T>
+Rank Vector<T>::bubble(Rank lo, Rank hi) {
+    Rank last = lo;
+    while(++lo < hi) {
+        if(_elem[lo - 1] > _elem[lo]) {
+            last = lo;  //记录最后一次逆序的位置，后面的都是有序的
+            swap(_elem[lo - 1], _elem[lo]);
+        }
+    }
+}
+
+template<typename T>
+void Vector<T>::bubbleSort() {
+    while(lo < (hi = bubble(lo, hi)));
+}
+
+template<typename T>
+void Vector<T>::merge(Rank lo, Rank mi, Rank hi) {  //二路归并算法
+    T *A = _elem + lo; //将向量的相对初始位置移到lo
+    int lb = mi - lo;   //左区间记为B，长度为lb
+    T *B = new T[lb];
+    for (Rank i = 0; i < lb; B[i] = A[i++]);   //为左区间子向量创建新空间，并复制到新空间
+    int lc = hi - mi;
+    T *C = _elem + mi;  //后子向量位置
+    for (Rank i = 0, j = 0, k = 0; j < lb || k < lc) {  //当左右区间有元素循环就继续
+        //该循环为A也就是按序插入数值
+        if(j < lb && (lc <= k || B[j] <= C[k])) A[i++] = B[j++];
+        //B[j]存在不越界 && (C已经放完 || B[j]中的元素较小))
+        if(k < lc && (lb <= j || C[k] < B[j])) A[i++] = C[k++];
+    }
+}
+
+template<typename T>
+void Vector<T>::mergeSort(Rank lo, Rank hi) {
+    if(hi - lo < 2) return; //区间为无元素或单元素
+    int mi = (lo + hi) >> 1;
+    mergeSort(lo, mi);  //左半段
+    mergeSort(mi, hi);  //右半段
+    merge(lo, mi, hi);  //归并
+}
+
+template<typename T>
+static void swap(T &e1, T &e2) {
+    T temp = e1;
+    e1 = e2;
+    e2 = temp;
+}
+
+template<typename T>
+static Rank binSearch(T *A, T const &e, Rank lo, Rank, hi) {
+    while(lo < hi) {
+        Rank mi = (lo + hi) >> 1;
+        e < A[mi] ? hi = mi : lo = mi + 1; //[lo,mi)或(mi,hi)
+        //如果命中，lo元素将会是带查找的元素雷同的元素区间中最后一个元素的后一位
+    }//出口时,lo == hi
+    return --lo;
+}
+
+template<typename T>
+static Rank fibSearch(T *A, T const &e, Rank lo, Rank, hi) {
+    Fib fib(hi - lo);
+    while(lo < hi) {
+        while(hi - lo < fib.get()) fib.prev();  //通过前序查找找到分割点
+        Rank mi = lo + fib.get() - 1;
+        if(e < A[mi]) hi = mi;  //深入前半段
+        else if(A[mi] < e) lo = mi + 1; //深入后半段
+        else return mi; //命中
+    }
+    return -1; //查找失败
+}
+
+
+
 
 
 
